@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend # Build the backend service
+    ports:
+      - "3000:3000" # Map port 3000 on the host to container
+    depends_on:
+      - db # Database must start before backend
+    environment:
+      - DB_HOST=db
+      - DB_USERNAME=user
+      - DB_PASSWORD=password
+      - DB_DATABASE=database
+      - JWT_SECRET=your_jwt_secret
+    volumes:
+      - backend-images:/usr/src/app/images # Persist image files
+
+  frontend:
+    build: ./frontend # Build the frontend service
+    ports:
+      - "8080:8080" # Map port 8080 on the host to container
+    depends_on:
+      - backend
+
+  db:
+    image: mysql:latest # Use latest MySQL image
+    ports:
+      - "3306:3306" # Map port 3306 on the host to container
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+      - MYSQL_DATABASE=database
+      - MYSQL_USER=user
+      - MYSQL_PASSWORD=password
+    volumes:
+      - db-data:/var/lib/mysql # Persist MySQL data
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql # Initialize database
+
+volumes:
+  db-data:
+  backend-images:
