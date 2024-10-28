@@ -9,18 +9,16 @@
 - Clement Leveque
 - Tom Klajn
 
-## Project Overview
+## List of services
 
-This project is an application composed of three main services:
-
-1. **Backend**: A REST API service that handles application logic and communicates with the database.
-2. **Frontend**: A user interface (UI) that allows interaction with the backend API.
-3. **Database (MySQL)**: A MySQL database for storing application data.
+1. **Backend**: NodeJS
+2. **Frontend**: NodeJS
+3. **Database (MySQL)**: MySQL
 
 ### Project Structure
 
 The project is organized into three main parts:
-- **backend/**: Contains the backend code, application logic, database connection configuration, and Dockerfile.
+- **backend/**: Contains the backend code and Dockerfile.
 - **frontend/**: Contains the frontend code, static resources, and Dockerfile.
 - **docker-compose.yml**: Docker Compose configuration to orchestrate the three services.
 
