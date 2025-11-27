@@ -1,0 +1,103 @@
+name: Security Pipeline (TP Final)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  security-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Setup Snyk CLI
+        uses: snyk/actions/setup@master
+
+    
+      - name: Install Dependencies (Backend)
+        run: cd backend && npm ci
+      
+      - name: Install Dependencies (Frontend)
+        run: cd frontend && npm ci
+
+
+      - name: Determine Security Mode
+        id: security_mode
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.base_ref }}" == "main" ]]; then
+            echo "mode=Strict_Blocking" >> $GITHUB_OUTPUT
+          else
+            echo "mode=Informative_NonBlocking" >> $GITHUB_OUTPUT
+          fi
+          echo "Mode: ${{ steps.security_mode.outputs.mode }}"
+
+
+
+      - name: SCA Backend (Gate Check)
+        run: |
+          cd backend
+          # -- Lancement du scan avec logique de blocage --
+          if [[ "${{ steps.security_mode.outputs.mode }}" == "Strict_Blocking" ]]; then
+            # En mode Strict, échec si vulnérabilité High ou Critique est trouvée
+            snyk test --severity-threshold=high --sarif-file-output=../snyk-sca-backend.sarif
+          else
+            # En mode Informative, toujours réussi, même avec des failles
+            snyk test --severity-threshold=low --sarif-file-output=../snyk-sca-backend.sarif || true
+          fi
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: SCA Frontend (Informative only - dependencies less critical)
+        run: |
+          cd frontend
+          # On garde le frontend en non-bloquant pour ne pas pénaliser un bug dans une lib de dev
+          snyk test --severity-threshold=low --sarif-file-output=../snyk-sca-frontend.sarif || true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+
+
+      - name: SAST Backend Code (Gate Check)
+        run: |
+          # -- Lancement du scan avec logique de blocage --
+          if [[ "${{ steps.security_mode.outputs.mode }}" == "Strict_Blocking" ]]; then
+            # En mode Strict, échec si failles critiques dans le code Express
+            snyk code test backend/ --severity-threshold=high --sarif-file-output=snyk-sast-backend.sarif
+          else
+            # En mode Informative
+            snyk code test backend/ --severity-threshold=low --sarif-file-output=snyk-sast-backend.sarif || true
+          fi
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: SAST Frontend Code
+        run: snyk code test frontend/ --sarif-file-output=snyk-sast-frontend.sarif || true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+
+      
+      - name: Secret Scanning (Gitleaks)
+        uses: zricethezav/gitleaks-action@master
+        continue-on-error: false 
+
+      
+      - name: Upload Security Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            snyk-sca-backend.sarif
+            snyk-sca-frontend.sarif
+            snyk-sast-backend.sarif
+            snyk-sast-frontend.sarif
+   
