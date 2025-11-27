@@ -1,0 +1,80 @@
+name: Security Pipeline (Monorepo)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  security-checks:
+    runs-on: ubuntu-latest
+    steps:
+ 
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Setup Snyk CLI
+        uses: snyk/actions/setup@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+
+      - name: Install Backend Dependencies
+        run: |
+          cd backend
+          npm ci
+      
+      - name: Install Frontend Dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Snyk Open Source (Backend)
+        run: |
+          cd backend
+          snyk test --sarif-file-output=../snyk-sca-backend.sarif
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        continue-on-error: true
+
+      - name: Snyk Open Source (Frontend)
+        run: |
+          cd frontend
+          snyk test --sarif-file-output=../snyk-sca-frontend.sarif
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        continue-on-error: true
+
+      
+      - name: Snyk Code (Backend SAST)
+        run: snyk code test backend/ --sarif-file-output=snyk-sast-backend.sarif
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        continue-on-error: true
+
+      - name: Snyk Code (Frontend SAST)
+        run: snyk code test frontend/ --sarif-file-output=snyk-sast-frontend.sarif
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        continue-on-error: true
+
+
+      - name: Secret Scanning (Gitleaks)
+        uses: zricethezav/gitleaks-action@master
+        continue-on-error: true
+
+      - name: Upload Security Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            snyk-sca-backend.sarif
+            snyk-sca-frontend.sarif
+            snyk-sast-backend.sarif
+            snyk-sast-frontend.sarif
